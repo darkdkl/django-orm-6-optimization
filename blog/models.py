@@ -4,20 +4,24 @@ from django.contrib.auth.models import User
 from django.db.models import Count
 from django.db.models import Prefetch
 
-class PostQuerySet(models.QuerySet):
+
+class RelatedPostsMixin():
+    def related_posts(self):
+        return self.prefetch_related(Prefetch('tags', queryset=Tag.objects.annotate(num_tags=Count('posts'))))   
+
+
+class PostQuerySet(models.QuerySet, RelatedPostsMixin):
     def year(self, year):
         return self.filter(published_at__year=year).order_by('published_at')
 
     def popular_posts(self):
-        return self.prefetch_related('author').prefetch_related('likes').prefetch_related(Prefetch('tags', queryset=Tag.objects.annotate(num_tags=Count('posts')))).annotate(popular_likes=Count('likes')).order_by('-popular_likes') 
-    def related_posts(self):
-        return self.prefetch_related('author').prefetch_related(Prefetch('tags', queryset=Tag.objects.annotate(num_tags=Count('posts'))))       
-
+        return self.related_posts().annotate(popular_likes=Count('likes')).order_by('-popular_likes') 
+        
     def fetch_with_comments_count(self):
         return self.annotate(comments_count=Count('comments'))
 
     def most_fresh(self):
-        return self.prefetch_related('author').prefetch_related(Prefetch('tags', queryset=Tag.objects.annotate(num_tags=Count('posts')))).annotate(comments_count=Count('comments')).order_by('-published_at')
+        return self.related_posts().annotate(comments_count=Count('comments')).order_by('-published_at')
     
     def count_likes_post_detail(self):
         return self.select_related('author').annotate(count_likes=Count('likes'))
